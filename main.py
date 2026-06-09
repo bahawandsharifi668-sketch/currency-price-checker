@@ -87,7 +87,8 @@ class CurrencyTrackerApp:
             bg='white',
             fg='#333',
             relief='sunken',
-            padding=10
+            padx=10,
+            pady=10
         )
         self.info_label.pack(fill='both')
         
@@ -141,51 +142,66 @@ class CurrencyTrackerApp:
                 self.update_status("❌ Failed to fetch prices")
         
         except Exception as e:
+            print(f"Error in _refresh_data: {e}")
             self.update_status(f"❌ Error: {str(e)}")
     
     def update_display(self, prices):
         """Update the information display"""
-        c1 = self.currency1.get()
-        c2 = self.currency2.get()
-        
-        if c1 in prices and c2 in prices and prices[c1] and prices[c2]:
-            rate = prices[c1] / prices[c2]
+        try:
+            c1 = self.currency1.get()
+            c2 = self.currency2.get()
             
-            # Get price change
-            current_rate, change = cf.get_price_change(c1, c2)
-            
-            change_text = ""
-            if change is not None:
-                change_text = f" ({change:+.2f}%)" if change != 0 else " (No change)"
-            
-            # Update info label
-            info_text = f"1 {c1} = {rate:.6f} {c2}{change_text}\n\nPrice: {prices[c1]:.6f} / {prices[c2]:.6f}"
-            self.info_label.config(text=info_text)
-            
-            # Update table
-            self.update_table(prices)
+            if c1 in prices and c2 in prices and prices[c1] and prices[c2]:
+                rate = prices[c1] / prices[c2]
+                
+                # Get price change
+                current_rate, change = cf.get_price_change(c1, c2)
+                
+                change_text = ""
+                if change is not None:
+                    change_text = f" ({change:+.2f}%)" if change != 0 else " (No change)"
+                
+                # Update info label
+                info_text = f"1 {c1} = {rate:.6f} {c2}{change_text}\n\nPrice: {prices[c1]:.6f} / {prices[c2]:.6f}"
+                self.info_label.config(text=info_text)
+                
+                # Update table
+                self.update_table(prices)
+        except Exception as e:
+            print(f"Error in update_display: {e}")
     
     def update_table(self, prices):
         """Update the data table"""
-        # Clear table
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        # Get historical data
-        historical = cf.get_historical_data(days=30)
-        
-        # Display last 10 entries
-        c1 = self.currency1.get()
-        c2 = self.currency2.get()
-        
-        for timestamp, price_data in sorted(historical.items())[-10:]:
-            if c1 in price_data and c2 in price_data:
-                if price_data[c1] and price_data[c2]:
-                    self.tree.insert('', 0, values=(
-                        timestamp,
-                        f"{price_data[c1]:.6f}",
-                        f"{price_data[c2]:.6f}"
-                    ))
+        try:
+            # Clear table
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+            
+            # Get historical data
+            historical = cf.get_historical_data(days=30)
+            
+            if not historical:
+                print("No historical data available yet")
+                return
+            
+            # Display last 10 entries
+            c1 = self.currency1.get()
+            c2 = self.currency2.get()
+            
+            count = 0
+            for timestamp, price_data in sorted(historical.items())[-10:]:
+                if c1 in price_data and c2 in price_data:
+                    if price_data[c1] and price_data[c2]:
+                        self.tree.insert('', 0, values=(
+                            timestamp,
+                            f"{price_data[c1]:.6f}",
+                            f"{price_data[c2]:.6f}"
+                        ))
+                        count += 1
+            
+            print(f"Added {count} rows to table")
+        except Exception as e:
+            print(f"Error in update_table: {e}")
     
     def update_status(self, message):
         """Update status label"""
@@ -194,69 +210,93 @@ class CurrencyTrackerApp:
     
     def show_graph(self):
         """Show 30-day price chart"""
-        c1 = self.currency1.get()
-        c2 = self.currency2.get()
-        
-        historical = cf.get_historical_data(days=30)
-        
-        if not historical:
-            messagebox.showwarning("No Data", "No historical data available yet. Please wait and refresh.")
-            return
-        
-        # Prepare data
-        timestamps = []
-        rates = []
-        
-        for timestamp, prices in historical.items():
-            if c1 in prices and c2 in prices and prices[c1] and prices[c2]:
-                timestamps.append(timestamp)
-                rate = prices[c1] / prices[c2]
-                rates.append(rate)
-        
-        if not rates:
-            messagebox.showwarning("No Data", "No valid data for selected currencies.")
-            return
-        
-        # Create new window for graph
-        graph_window = tk.Toplevel(self.root)
-        graph_window.title(f"{c1}/{c2} - 30 Day Chart")
-        graph_window.geometry("1000x600")
-        
-        # Create figure
-        fig = Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
-        
-        ax.plot(range(len(rates)), rates, marker='o', linestyle='-', color='#0066cc', linewidth=2)
-        ax.set_xlabel('Days', fontsize=10)
-        ax.set_ylabel(f'Exchange Rate ({c1}/{c2})', fontsize=10)
-        ax.set_title(f'{c1}/{c2} - Last 30 Days', fontsize=14, fontweight='bold')
-        ax.grid(True, alpha=0.3)
-        
-        # Show every 5th timestamp to avoid crowding
-        tick_positions = range(0, len(timestamps), max(1, len(timestamps)//6))
-        tick_labels = [timestamps[i] if i < len(timestamps) else '' for i in tick_positions]
-        ax.set_xticks(tick_positions)
-        ax.set_xticklabels(tick_labels, rotation=45)
-        
-        fig.tight_layout()
-        
-        # Embed in tkinter
-        canvas = FigureCanvasTkAgg(fig, master=graph_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill='both', expand=True)
-        
-        self.update_status(f"📊 Showing {c1}/{c2} chart")
+        try:
+            c1 = self.currency1.get()
+            c2 = self.currency2.get()
+            
+            print(f"Getting historical data for {c1}/{c2}")
+            historical = cf.get_historical_data(days=30)
+            
+            print(f"Historical data entries: {len(historical)}")
+            
+            if not historical or len(historical) == 0:
+                messagebox.showwarning(
+                    "No Data", 
+                    "No historical data available yet.\n\n"
+                    "Please wait at least a few minutes for data to be collected.\n"
+                    "The app saves data automatically every 60 seconds."
+                )
+                return
+            
+            # Prepare data
+            timestamps = []
+            rates = []
+            
+            for timestamp, prices in sorted(historical.items()):
+                if c1 in prices and c2 in prices and prices[c1] and prices[c2]:
+                    try:
+                        timestamps.append(timestamp)
+                        rate = prices[c1] / prices[c2]
+                        rates.append(rate)
+                    except Exception as e:
+                        print(f"Error processing entry {timestamp}: {e}")
+                        continue
+            
+            print(f"Chart data points: {len(rates)}")
+            
+            if not rates or len(rates) == 0:
+                messagebox.showwarning("No Data", "No valid data for selected currencies.")
+                return
+            
+            # Create new window for graph
+            graph_window = tk.Toplevel(self.root)
+            graph_window.title(f"{c1}/{c2} - 30 Day Chart")
+            graph_window.geometry("1000x600")
+            
+            # Create figure
+            fig = Figure(figsize=(10, 6), dpi=100)
+            ax = fig.add_subplot(111)
+            
+            ax.plot(range(len(rates)), rates, marker='o', linestyle='-', color='#0066cc', linewidth=2)
+            ax.set_xlabel('Data Points', fontsize=10)
+            ax.set_ylabel(f'Exchange Rate ({c1}/{c2})', fontsize=10)
+            ax.set_title(f'{c1}/{c2} - Historical Data ({len(rates)} entries)', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3)
+            
+            # Show every Nth timestamp to avoid crowding
+            step = max(1, len(timestamps) // 6)
+            tick_positions = range(0, len(timestamps), step)
+            tick_labels = [timestamps[i] if i < len(timestamps) else '' for i in tick_positions]
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, rotation=45, ha='right')
+            
+            fig.tight_layout()
+            
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, master=graph_window)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True)
+            
+            self.update_status(f"📊 Showing {c1}/{c2} chart with {len(rates)} data points")
+            
+        except Exception as e:
+            print(f"Error in show_graph: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Error creating graph:\n{str(e)}")
     
     def start_auto_refresh(self):
         """Auto-refresh data every 60 seconds"""
         def auto_refresh_loop():
             while self.auto_refresh:
                 time.sleep(60)  # Wait 60 seconds
+                print("Auto-refreshing data...")
                 self._refresh_data()
         
         threading.Thread(target=auto_refresh_loop, daemon=True).start()
         
         # Initial refresh
+        print("Starting initial refresh...")
         self.manual_refresh()
     
     def on_closing(self):
