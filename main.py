@@ -12,7 +12,7 @@ class CurrencyTrackerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Currency Price Tracker")
-        self.root.geometry("1000x700")
+        self.root.geometry("1200x800")
         self.root.configure(bg='#f0f0f0')
         
         # Available currencies
@@ -76,9 +76,17 @@ class CurrencyTrackerApp:
         graph_btn = ttk.Button(control_frame, text="📊 Show 30-Day Graph", command=self.show_graph)
         graph_btn.pack(side='left', padx=5)
         
+        # Main content frame with two columns
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(pady=10, padx=10, fill='both', expand=True)
+        
+        # Left column - Info and table
+        left_frame = ttk.Frame(main_frame)
+        left_frame.pack(side='left', fill='both', expand=True, padx=5)
+        
         # Info Display
-        info_frame = ttk.LabelFrame(self.root, text="Current Exchange Rate", padding=10)
-        info_frame.pack(pady=10, padx=10, fill='x')
+        info_frame = ttk.LabelFrame(left_frame, text="Current Exchange Rate", padding=10)
+        info_frame.pack(pady=10, fill='x')
         
         self.info_label = tk.Label(
             info_frame,
@@ -94,7 +102,7 @@ class CurrencyTrackerApp:
         
         # Status
         self.status_label = tk.Label(
-            self.root,
+            left_frame,
             text="Status: Initializing...",
             font=("Arial", 10),
             bg='#f0f0f0',
@@ -103,12 +111,12 @@ class CurrencyTrackerApp:
         self.status_label.pack(pady=5)
         
         # Data Display
-        data_frame = ttk.LabelFrame(self.root, text="Recent Prices", padding=10)
-        data_frame.pack(pady=10, padx=10, fill='both', expand=True)
+        data_frame = ttk.LabelFrame(left_frame, text="Recent Prices", padding=10)
+        data_frame.pack(pady=10, fill='both', expand=True)
         
         # Treeview for data
         columns = ('Timestamp', 'Currency 1', 'Currency 2')
-        self.tree = ttk.Treeview(data_frame, columns=columns, height=12, show='headings')
+        self.tree = ttk.Treeview(data_frame, columns=columns, height=10, show='headings')
         
         for col in columns:
             self.tree.column(col, width=300)
@@ -120,6 +128,28 @@ class CurrencyTrackerApp:
         
         self.tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
+        
+        # Right column - Prediction
+        right_frame = ttk.Frame(main_frame)
+        right_frame.pack(side='right', fill='both', padx=5)
+        
+        # Prediction Display
+        prediction_frame = ttk.LabelFrame(right_frame, text="🤖 AI Prediction (Tomorrow)", padding=15)
+        prediction_frame.pack(pady=10, fill='both')
+        
+        self.prediction_label = tk.Label(
+            prediction_frame,
+            text="Collecting data...\n\nPlease wait",
+            font=("Arial", 12),
+            bg='#e8f4f8',
+            fg='#333',
+            relief='sunken',
+            padx=15,
+            pady=15,
+            wraplength=250,
+            justify='left'
+        )
+        self.prediction_label.pack(fill='both', expand=True)
     
     def manual_refresh(self):
         """Manually refresh data"""
@@ -137,6 +167,7 @@ class CurrencyTrackerApp:
                 
                 # Update UI
                 self.update_display(prices)
+                self.update_prediction()
                 self.update_status("✅ Data updated successfully!")
             else:
                 self.update_status("❌ Failed to fetch prices")
@@ -202,6 +233,53 @@ class CurrencyTrackerApp:
             print(f"Added {count} rows to table")
         except Exception as e:
             print(f"Error in update_table: {e}")
+    
+    def update_prediction(self):
+        """Update price prediction"""
+        try:
+            c1 = self.currency1.get()
+            c2 = self.currency2.get()
+            
+            prediction = cf.predict_future_price(c1, c2, days_ahead=1)
+            
+            if prediction:
+                predicted_rate = prediction['predicted_rate']
+                current_rate = prediction['current_rate']
+                percentage_change = prediction['percentage_change']
+                confidence = prediction['confidence']
+                trend = prediction['trend']
+                data_points = prediction['data_points']
+                
+                # Format prediction text
+                prediction_text = f"""
+قیمت کنونی:
+1 {c1} = {current_rate:.6f} {c2}
+
+پیش‌بینی فردا:
+1 {c1} = {predicted_rate:.6f} {c2}
+
+تغییر:
+{percentage_change:+.2f}%
+
+روند:
+{trend}
+
+اعتماد:
+{confidence}% ✓
+
+داده‌ها:
+{data_points} نقطه
+""".strip()
+                
+                self.prediction_label.config(text=prediction_text)
+            else:
+                self.prediction_label.config(
+                    text="⏳ در حال جمع‌آوری داده...\n\nلطفا صبر کنید\n\n(حداقل 3 داده نیاز است)"
+                )
+        
+        except Exception as e:
+            print(f"Error in update_prediction: {e}")
+            self.prediction_label.config(text=f"❌ خطا:\n{str(e)}")
     
     def update_status(self, message):
         """Update status label"""
