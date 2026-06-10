@@ -2,6 +2,7 @@ import requests
 import json
 import os
 from datetime import datetime
+import numpy as np
 
 # Free API endpoint (no key needed)
 API_URL = "https://api.exchangerate-api.com/v4/latest/"
@@ -136,3 +137,104 @@ def get_price_change(currency1, currency2, hours=24):
     except Exception as e:
         print(f"Error calculating change: {e}")
         return None, None
+
+def predict_future_price(currency1, currency2, days_ahead=1):
+    """
+    Predict future exchange rate using Linear Regression
+    Uses historical data to predict price for days_ahead
+    
+    Returns: dictionary with prediction details or None
+    """
+    try:
+        historical = get_historical_data(days=30)
+        
+        if not historical or len(historical) < 3:
+            print("Not enough data for prediction (need at least 3 entries)")
+            return None
+        
+        # Prepare data
+        timestamps = []
+        rates = []
+        
+        for timestamp, prices in sorted(historical.items()):
+            if currency1 in prices and currency2 in prices and prices[currency1] and prices[currency2]:
+                try:
+                    timestamps.append(timestamp)
+                    rate = prices[currency1] / prices[currency2]
+                    rates.append(rate)
+                except:
+                    continue
+        
+        if len(rates) < 3:
+            print("Not enough valid data for prediction (need at least 3 valid entries)")
+            return None
+        
+        # Convert to numpy arrays
+        x = np.arange(len(rates))  # Days index: [0, 1, 2, 3, ...]
+        y = np.array(rates)  # Exchange rates
+        
+        # Linear regression (y = mx + b)
+        # Calculate slope and intercept using least squares method
+        n = len(x)
+        sum_x = np.sum(x)
+        sum_y = np.sum(y)
+        sum_xy = np.sum(x * y)
+        sum_x2 = np.sum(x * x)
+        
+        denominator = (n * sum_x2 - sum_x * sum_x)
+        if denominator == 0:
+            return None
+            
+        slope = (n * sum_xy - sum_x * sum_y) / denominator
+        intercept = (sum_y - slope * sum_x) / n
+        
+        # Predict for days_ahead
+        next_day_index = len(rates) + days_ahead - 1
+        predicted_rate = slope * next_day_index + intercept
+        
+        # Calculate confidence (R-squared value)
+        y_pred = slope * x + intercept
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+        
+        # Ensure R-squared is between 0 and 1
+        r_squared = max(0, min(1, r_squared))
+        confidence = int(r_squared * 100)
+        
+        # Determine trend
+        current_rate = rates[-1]
+        if predicted_rate > current_rate * 1.01:  # More than 1% increase
+            trend = "📈 صعودی (بالا می‌رود)"
+        elif predicted_rate < current_rate * 0.99:  # More than 1% decrease
+            trend = "📉 نزولی (پایین می‌رود)"
+        else:
+            trend = "➡️ ثابت (بدون تغییر)"
+        
+        # Calculate percentage change
+        percentage_change = ((predicted_rate - current_rate) / current_rate) * 100
+        
+        print(f"\n{'='*50}")
+        print(f"Prediction: {currency1}/{currency2}")
+        print(f"Current: {current_rate:.6f}")
+        print(f"Predicted: {predicted_rate:.6f}")
+        print(f"Change: {percentage_change:+.2f}%")
+        print(f"Trend: {trend}")
+        print(f"Confidence: {confidence}%")
+        print(f"Data Points: {len(rates)}")
+        print(f"{'='*50}\n")
+        
+        return {
+            'predicted_rate': predicted_rate,
+            'current_rate': current_rate,
+            'percentage_change': percentage_change,
+            'confidence': confidence,
+            'trend': trend,
+            'data_points': len(rates)
+        }
+    
+    except Exception as e:
+        print(f"Error in prediction: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
